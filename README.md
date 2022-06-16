@@ -3,19 +3,21 @@
 ### 개요
 > 옷, 유체 등 비 강체 물체를 더 사실적으로 렌더링하고 빠르게 렌더링하는 것은 게임처럼 실시간으로 계산이 되어야하는 분야에서 중요하게 다루어진다. cloth simulation을 통해 더 정확하고 안정적인 시뮬레이션 구현을 목표로 한다.  
 
-------------------------
+### 세팅
+- unity3D 
+
 ### 수행과정
 - Model : Mass-Spring Model
 - Force : 
 
-![image](https://user-images.githubusercontent.com/49023736/174028044-fda86409-ad5a-4820-a6b5-b2de242fd008.png)
-#
-![image](https://user-images.githubusercontent.com/49023736/174028127-beffa819-0099-4e91-a683-54462332ffff.png)
-#
-![image](https://user-images.githubusercontent.com/49023736/174027566-8ed46264-6fb7-4136-b5dd-8e33535d414e.png)
-#
-![image](https://user-images.githubusercontent.com/49023736/174027599-7c596f51-002a-4b6a-8ae3-461b421da1ec.png)
+![image](https://user-images.githubusercontent.com/49023736/174028044-fda86409-ad5a-4820-a6b5-b2de242fd008.png)  
 
+![image](https://user-images.githubusercontent.com/49023736/174028127-beffa819-0099-4e91-a683-54462332ffff.png)  
+
+![image](https://user-images.githubusercontent.com/49023736/174027566-8ed46264-6fb7-4136-b5dd-8e33535d414e.png)  
+
+![image](https://user-images.githubusercontent.com/49023736/174027599-7c596f51-002a-4b6a-8ae3-461b421da1ec.png)
+#
 
 - Time Integration : Euler Method
 장점 : 구현이 간단하다
@@ -23,7 +25,7 @@
 - Time Integration : Verlet Mehod
 장점 : 업데이트 속도가 빠르다
 단점 : 천이 과도하게 늘어나는 super-elastic effect가 심해, inverse dynamics effect와 같은 추가적인 작업이 필요하다
-
+#
 - Collision : Sphere
 천의 정점과 구의 정점의 거리를 비교하거나, ray-cast 방법을 이용하여 구현할 수 있다. box에 비해 그 난이도가 쉬운 편이다.
 
@@ -33,13 +35,14 @@ box를 구현하기 위해 [1]에서 소개하는 공식들을 사용한다.
 1. vertex-triangle
 삼각형내의 무게중심좌표(barycentric coordinates)를 알려준다.
 
-![image](https://user-images.githubusercontent.com/49023736/174027692-3beb62d3-00a8-4191-a86e-a88bbd094d45.png)
+![image](https://user-images.githubusercontent.com/49023736/174027692-3beb62d3-00a8-4191-a86e-a88bbd094d45.png)  
 
 2. edge-edge
 edge-edge의 교차지점을 알려준다.
 
-![image](https://user-images.githubusercontent.com/49023736/174027771-692d86d6-95c5-46b7-8bc5-8567583a2afd.png)
+![image](https://user-images.githubusercontent.com/49023736/174027771-692d86d6-95c5-46b7-8bc5-8567583a2afd.png)  
 
+#
 - GPGPU : Compute Shader를 이용하여 구현한다.
 
 ------------------------
