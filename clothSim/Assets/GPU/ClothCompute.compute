@@ -1,0 +1,250 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Spring
+#pragma kernel Integrate
+
+
+
+struct Ray {
+    float3 origin, direction;
+};
+struct SphereCollider {
+    float3 center;
+    float radius;
+};
+struct Hit {
+    bool collision;
+    float3 hitPoint, hitNormal;
+};
+
+float3 Reflect(float3 original, float3 normal) {
+    return original - 2.0 * dot(original, normal) * normal;
+}
+float3 NearestPointOnRay(Ray r, float3 p) {
+    if (length(r.direction) < 0.001) {
+        return r.origin + r.direction / 2.0;
+    }
+
+    float t = dot(p - r.origin, r.direction) / dot(r.direction, r.direction);
+    return r.origin + r.direction / 2.0;
+}
+Hit RaySphereCollision(Ray r, SphereCollider s, float padding) {
+    Hit h;
+    h.collision = false;
+    h.hitPoint = float3(0, 0, 0);
+    h.hitNormal = float3(0, 0, 0);
+
+    float3 nearestPoint = NearestPointOnRay(r, s.center);
+
+    if (length(nearestPoint - s.center) <= s.radius + padding) {
+        h.collision = true;
+        h.hitNormal = normalize(nearestPoint - s.center);
+        h.hitPoint = nearestPoint + h.hitNormal * 0.001;
+    }
+
+    return h;
+}
+
+
+RWStructuredBuffer<float3> positionBuffer;
+RWStructuredBuffer<float3> velocityBuffer;
+RWStructuredBuffer<float3> forceBuffer;
+RWStructuredBuffer<uint> restrainedBuffer;
+
+uint count, dim;
+
+float mass;
+float cor;
+float dt;
+
+float windScale;
+float3 windVelocity;
+
+//
+float structuralScale, structuralRl, structuralKs, structuralKd;
+float diagonalScale, diagonalRl, diagonalKs, diagonalKd;
+float bendingScale, bendingRl, bendingKd, bendingKs;
+
+//collision
+RWStructuredBuffer<SphereCollider> sphereBuffer;
+uint sphereCount;
+
+//control
+float3 leftup, rightup, rightmiddle, leftmiddle, centerup, centermiddle;
+
+
+int2 To2D(uint id) {
+    return int2(id % dim, id / dim);
+}
+
+uint To1D(int2 id) {
+    return (uint)(id.y * dim + id.x);
+}
+bool IsValid2D(int2 id) {
+    return !(id.x < 0 || id.x >= (int)dim || id.y < 0 || id.y >= (int)dim);
+}
+
+float3 GetSpringForce(uint a, uint b, float restLength, float ks, float kd) {
+
+    float3 aPos = positionBuffer[a];
+    float3 bPos = positionBuffer[b];
+
+    float3 aVel = velocityBuffer[a];
+    float3 bVel = velocityBuffer[b];
+
+
+    float3 dir = normalize(bPos - aPos);
+
+    if (length(bPos - aPos) < 0.00001) {
+        return float3(0, 0, 0);
+    }
+
+    float springForce = -ks * (length(bPos - aPos) - restLength);
+    float dampingForce = -kd * (dot(bVel - aVel, dir));
+
+    return (springForce + dampingForce)*dir;
+}
+
+float3 GetStructuralSpringForces(uint i) {
+
+    float3 force = float3(0,0,0);
+    
+    int2 above = To2D(i) + int2(0, 1);
+    int2 below = To2D(i) + int2(0, -1);
+    int2 right = To2D(i) + int2(1, 0);
+    int2 left = To2D(i) + int2(-1, 0);
+
+    if (IsValid2D(above)) {
+        force += GetSpringForce(i, To1D(above), structuralRl, structuralKs, structuralKd);
+    }
+    if (IsValid2D(below)) {
+        force += GetSpringForce(i, To1D(below), structuralRl, structuralKs, structuralKd);
+    }
+    if (IsValid2D(right)) {
+        force += GetSpringForce(i, To1D(right), structuralRl, structuralKs, structuralKd);
+    }
+    if (IsValid2D(left)) {
+        force += GetSpringForce(i, To1D(left), structuralRl, structuralKs, structuralKd);
+    }
+
+    return force;
+}
+
+float3 GetDiagonalSpringForces(uint idx) {
+    float3 force = float3(0, 0, 0);
+
+    int2 ll = To2D(idx) + int2(-1, -1);
+    int2 ul = To2D(idx) + int2(-1, 1);
+    int2 lr = To2D(idx) + int2(1, -1);
+    int2 ur = To2D(idx) + int2(1, 1);
+
+    if (IsValid2D(ll)) {
+        force += GetSpringForce(idx, To1D(ll), diagonalRl, diagonalKs, diagonalKd);
+    }
+    if (IsValid2D(ul)) {
+        force += GetSpringForce(idx, To1D(ul), diagonalRl, diagonalKs, diagonalKd);
+    }
+    if (IsValid2D(lr)) {
+        force += GetSpringForce(idx, To1D(lr), diagonalRl, diagonalKs, diagonalKd);
+    }
+    if (IsValid2D(ur)) {
+        force += GetSpringForce(idx, To1D(ur), diagonalRl, diagonalKs, diagonalKd);
+    }
+
+    return force;
+}
+
+float3 GetBendingSpringForces(uint idx) {
+    float3 force = float3(0, 0, 0);
+
+    int2 ll = To2D(idx) + int2(-2, -2);
+    int2 ul = To2D(idx) + int2(-2, 2);
+    int2 lr = To2D(idx) + int2(2, -2);
+    int2 ur = To2D(idx) + int2(2, 2);
+
+    if (IsValid2D(ll)) {
+        force += GetSpringForce(idx, To1D(ll), bendingRl, bendingKs, bendingKd);
+    }
+    if (IsValid2D(ul)) {
+        force += GetSpringForce(idx, To1D(ul), bendingRl, bendingKs, bendingKd);
+    }
+    if (IsValid2D(lr)) {
+        force += GetSpringForce(idx, To1D(lr), bendingRl, bendingKs, bendingKd);
+    }
+    if (IsValid2D(ur)) {
+        force += GetSpringForce(idx, To1D(ur), bendingRl, bendingKs, bendingKd);
+    }
+
+    return force;
+}
+
+
+[numthreads(512,1,1)]
+void Spring(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x < count) {
+        forceBuffer[id.x] += GetStructuralSpringForces(id.x) * saturate(structuralScale);
+        forceBuffer[id.x] += GetDiagonalSpringForces(id.x) * saturate(diagonalScale);
+        forceBuffer[id.x] += GetBendingSpringForces(id.x) * saturate(bendingScale);
+
+    }
+
+}
+
+
+[numthreads(512, 1, 1)]
+void Integrate(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x < count) {
+        if (id.x == 0) {
+            positionBuffer[id.x] = leftup;
+        }
+        else if (id.x == dim - 1) {
+            positionBuffer[id.x] = rightup;
+        }
+        //else if (id.x == dim / 2) {
+        //    positionBuffer[id.x] = centerup;
+        //}
+        //else if (id.x == 0 + dim*3) {
+        //    positionBuffer[id.x] = leftmiddle;
+        //}
+        //else if (id.x == dim - 1 + dim * 3) {
+        //    positionBuffer[id.x] = rightmiddle;
+        //}
+        //else if (id.x == dim / 2 + dim * 3) {
+
+        //    positionBuffer[id.x] = centermiddle;
+        //}
+        //else if (id.x == count - 1) {
+
+        //    positionBuffer[id.x] = rightdown;
+        //}
+        //else if (id.x == count - dim) {
+        //    positionBuffer[id.x] = leftdown;
+        //}
+        else {
+            float3 g = float3(0, -9.81f, 0);
+            float3 a = windScale*windVelocity + g + forceBuffer[id.x]/mass;
+            
+            float3 oldPos = positionBuffer[id.x];
+
+
+            positionBuffer[id.x] += velocityBuffer[id.x] * dt;
+            velocityBuffer[id.x] += a * dt;
+
+            //Ray r;
+            //r.origin = oldPos;
+            //r.direction = (positionBuffer[id.x] - oldPos);
+
+            //for (uint s = 0; s < sphereCount; s++) {
+            //    Hit h = RaySphereCollision(r, sphereBuffer[s], 0.05);
+            //    if (h.collision) {
+            //        positionBuffer[id.x] =  h.hitPoint;
+            //        velocityBuffer[id.x] = saturate(cor)*Reflect(velocityBuffer[id.x], h.hitNormal);
+            //    }
+            //}
+
+        }
+
+    }
+}
+
