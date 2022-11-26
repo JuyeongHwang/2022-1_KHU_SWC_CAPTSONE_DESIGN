@@ -1,11 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-
+using System.Diagnostics;
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class ClothSpawnerGPU : MonoBehaviour
 {
-
+    public int iter = 0;
     #region Parameters
     public GetCollider sphere;
     //public Transform lefthand, leftarm, leftarm2;
@@ -108,36 +108,49 @@ public class ClothSpawnerGPU : MonoBehaviour
     private void Update()
     {
 
-        moveDirection = new Vector3(Input.GetAxis("Horizontal"),0,
-            Input.GetAxis("Vertical"));
-        if (Input.GetKey(KeyCode.Q))
+        Stopwatch watch = new Stopwatch();
+        watch.Start();
+        //world->local setBuffer해야하는건 아닐까
+        //print("origin : "+vertices[10]);
+        //print("local to world : " + transform.TransformPoint(vertices[10]));
+        //print("world to local : " + transform.InverseTransformPoint(vertices[10]));
+        while (true)
         {
-            moveDirection += Vector3.up;
-        }
-        else if (Input.GetKey(KeyCode.E))
-        {
-
-            moveDirection -= Vector3.up;
-        }
-        //controlCape(0,Time.deltaTime);
-    }
-    private void FixedUpdate()
-    {
-        if (successfullyInitialized)
-        {
-
-            //world->local setBuffer해야하는건 아닐까
-            //print("origin : "+vertices[10]);
-            //print("local to world : " + transform.TransformPoint(vertices[10]));
-            //print("world to local : " + transform.InverseTransformPoint(vertices[10]));
-
+            if (iter <= 0) { break; }
             UpdateSimulation(loops, Time.deltaTime);
-            
+
             positionBuffer.GetData(vertices);
 
             mesh.vertices = vertices;
 
             mesh.RecalculateNormals();
+            iter--;
+
+        }
+        watch.Stop();
+        print("GPU :" + watch.ElapsedMilliseconds + "ms");
+
+        //moveDirection = new Vector3(Input.GetAxis("Horizontal"),0,
+        //    Input.GetAxis("Vertical"));
+        //if (Input.GetKey(KeyCode.Q))
+        //{
+        //    moveDirection += Vector3.up;
+        //}
+        //else if (Input.GetKey(KeyCode.E))
+        //{
+
+        //    moveDirection -= Vector3.up;
+        //}
+        ////controlCape(0,Time.deltaTime);
+    }
+
+
+    private void FixedUpdate()
+    {
+
+
+        if (successfullyInitialized)
+        {
 
         }
     }
@@ -370,13 +383,13 @@ public class ClothSpawnerGPU : MonoBehaviour
         //    clothCompute.SetInt("sphereCount", 0);
         //}
 
-
-        for (int i = 0; i<t; i++)
+        for (int i = 0; i < t; i++)
         {
             forceBuffer.SetData(zeros);
             //controlVertices();
             clothCompute.Dispatch(springKernel, count / 512 + 1, 1, 1);
             clothCompute.Dispatch(IntegrateKernel, count / 512 + 1, 1, 1);
+
         }
     }
 

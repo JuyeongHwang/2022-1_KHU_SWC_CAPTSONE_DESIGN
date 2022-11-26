@@ -1,10 +1,13 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Diagnostics;
 
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class ClothSpawner : MonoBehaviour
 {
+
+	public int iter = 10;
 	//public Transform right, left;
 	public GameObject Cube;
 	public GameObject Sphere;
@@ -94,24 +97,39 @@ public class ClothSpawner : MonoBehaviour
 		mesh = CreateMesh("ClothMesh");
 		GetComponent<MeshFilter>().mesh = mesh;
 	}
-
 	private void FixedUpdate()
 	{
-		makeCube();
-		for (int i = 0; i < count; i++)
-		{
-			forces[i] = Vector3.zero;
-		}
-		Spring();
-		Integrate();
 
-		mesh.vertices = vertices;
-		mesh.RecalculateNormals();
+
 	}
 
+    private void Update()
+    {
+		Stopwatch watch = new Stopwatch();
+		watch.Start();
 
 
-	int2 To2D(uint id)
+		while (true)
+		{
+			if (iter <= 0) { break; }
+			for (int i = 0; i < count; i++)
+			{
+				forces[i] = Vector3.zero;
+			}
+			Spring();
+			Integrate();
+
+			mesh.vertices = vertices;
+			mesh.RecalculateNormals();
+			iter--;
+		}
+
+
+		watch.Stop();
+		print("CPU :" + watch.ElapsedMilliseconds + "ms");
+	}
+
+    int2 To2D(uint id)
     {
 		return new int2((int)id % dim, (int)id / dim);
 
